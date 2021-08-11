@@ -59,7 +59,7 @@ endif()
 
 include_directories (include "${COMMON_SOURCES}/include")
 
-file(GLOB SOURCES "src/*.cpp" "${COMMON_SOURCES}/src/*mavlink*.cpp")
-file(GLOB HEADERS "include/*.h" "${COMMON_SOURCES}/include/*mavlink*.h")
+file(GLOB SOURCES "src/*.cpp" "${COMMON_SOURCES}/src/*mavlink*.cpp" "${COMMON_SOURCES}/src/*payload*.cpp")
+file(GLOB HEADERS "include/*.h" "${COMMON_SOURCES}/include/*mavlink*.h" "${COMMON_SOURCES}/src/*payload*.h")
 
 Build_vsm()

@@ -10,7 +10,6 @@
 
 #include <mavlink_vehicle.h>
 #include <adsb_aircraft.h>
-#include <payload_protocol.h>
 
 #define ARDUPILOT_VERSION(maj, min, patch) ((maj << 24) + (min << 16) + (patch << 8))
 #define DISARM_MAGIC_VALUE 21196.0f
@@ -304,9 +303,6 @@ public:
         Stop_camera_series();
 
         void
-        Process_payload_command(PayloadSubsystem &payload_subsystem, const ugcs::vsm::Property_list& params);
-
-        void
         Process_direct_mount_control(const ugcs::vsm::Property_list& params);
 
     } vehicle_command;
@@ -324,7 +320,7 @@ public:
          * initialization are made, like sequence number generation.
          */
         void
-        Add_mission_item(ugcs::vsm::mavlink::Pld_mission_item::Ptr);
+        Add_mission_item(ugcs::vsm::mavlink::Pld_mission_item_int::Ptr);
 
         //@{
         /** Prepare methods for different types of actions. These methods
@@ -385,15 +381,15 @@ public:
         //@}
 
         /** Build waypoint mission item based on move action. */
-        ugcs::vsm::mavlink::Pld_mission_item::Ptr
+        ugcs::vsm::mavlink::Pld_mission_item_int::Ptr
         Build_wp_mission_item(const ugcs::vsm::Property_list& params);
 
         /** Build ROI mission item based on given coordinates */
-        ugcs::vsm::mavlink::Pld_mission_item::Ptr
+        ugcs::vsm::mavlink::Pld_mission_item_int::Ptr
         Build_roi_mission_item(const ugcs::vsm::Geodetic_tuple& coords);
 
         /** Build Heading mission item */
-        ugcs::vsm::mavlink::Pld_mission_item::Ptr
+        ugcs::vsm::mavlink::Pld_mission_item_int::Ptr
         Build_heading_mission_item(
                 float heading,
                 float speed = 0.0,
@@ -404,7 +400,7 @@ public:
          * based on follow_terrain parameter in Property_list
          */
         void
-        Handle_terrain_following(ugcs::vsm::mavlink::Pld_mission_item& mi,
+        Handle_terrain_following(ugcs::vsm::mavlink::Pld_mission_item_int& mi,
                                  const ugcs::vsm::Property_list& params);
 
         void
@@ -465,7 +461,7 @@ public:
          * @param heading Vehicle heading.
          */
         void
-        Fill_mavlink_mission_item_coords(ugcs::vsm::mavlink::Pld_mission_item& msg,
+        Fill_mavlink_mission_item_coords(ugcs::vsm::mavlink::Pld_mission_item_int& msg,
                 const ugcs::vsm::Geodetic_tuple& tuple, double heading);
 
         /**
@@ -473,12 +469,12 @@ public:
          * @param msg Mavlink message.
          */
         void
-        Fill_mavlink_mission_item_common(ugcs::vsm::mavlink::Pld_mission_item& msg);
+        Fill_mavlink_mission_item_common(ugcs::vsm::mavlink::Pld_mission_item_int& msg);
 
-        ugcs::vsm::mavlink::Pld_mission_item::Ptr
+        ugcs::vsm::mavlink::Pld_mission_item_int::Ptr
         Create_mission_item();
 
-        ugcs::vsm::mavlink::Pld_mission_item::Ptr
+        ugcs::vsm::mavlink::Pld_mission_item_int::Ptr
         Create_mission_item_with_coords(const ugcs::vsm::Property_list& params);
 
         ugcs::vsm::mavlink::Pld_command_long::Ptr
@@ -583,26 +579,10 @@ public:
     On_power_status(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::MESSAGE_ID::POWER_STATUS>::Ptr);
 
     void
+    On_efi_status(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::MESSAGE_ID::EFI_STATUS>::Ptr);
+
+    void
     On_adsb_vehicle(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::MESSAGE_ID::ADSB_VEHICLE>::Ptr);
-
-    void
-    On_v2_extension(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::MESSAGE_ID::V2_EXTENSION>::Ptr);
-
-    void
-    On_data16(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::apm::MESSAGE_ID::DATA16,
-            ugcs::vsm::mavlink::apm::Extension>::Ptr);
-
-    void
-    On_data32(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::apm::MESSAGE_ID::DATA32,
-            ugcs::vsm::mavlink::apm::Extension>::Ptr);
-
-    void
-    On_data64(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::apm::MESSAGE_ID::DATA64,
-            ugcs::vsm::mavlink::apm::Extension>::Ptr);
-
-    void
-    On_data96(ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::apm::MESSAGE_ID::DATA96,
-            ugcs::vsm::mavlink::apm::Extension>::Ptr);
 
     void
     On_string_parameter(
@@ -611,7 +591,7 @@ public:
             ugcs::vsm::mavlink::sph::Extension>::Ptr message);
 
     void
-    On_mission_item(ugcs::vsm::mavlink::Pld_mission_item);
+    On_mission_item(ugcs::vsm::mavlink::Pld_mission_item_int);
 
     void
     On_mission_request(int seq);
@@ -632,6 +612,16 @@ public:
 
     bool
     On_adsb_vehicles_timer();
+
+    void
+    On_gimbal_report(
+            ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::apm::MESSAGE_ID::GIMBAL_REPORT,
+                    ugcs::vsm::mavlink::apm::Extension>::Ptr);
+
+    void
+    On_mount_status(
+            ugcs::vsm::mavlink::Message<ugcs::vsm::mavlink::apm::MESSAGE_ID::MOUNT_STATUS,
+                    ugcs::vsm::mavlink::apm::Extension>::Ptr);
 
 protected:
     /** Load parameters from configuration. */
@@ -843,26 +833,10 @@ private:
      * to be sent as MAV_CMD instead of mission item. */
     bool send_home_position_as_mav_cmd = false;
 
-    /** MAV_CMD_GET_HOME_POSITION command to retrieve HL from vehicle.
-     * Ardupilot version 3.4.0+ supports MAV_CMD_GET_HOME_POSITION command.
-     * For older version we read waypoint #0 to get HL which can
-     * potentially interfere with route download thus failing the upload if
-     * HL retrieval is in progress.
-     */
-    bool use_get_home_position = false;
-
     /** Ardupilot version 3.4+ allows to adjust raw altitude with GND_ALT_OFFSET
      * parameter. Previous versions either don't have this parameter or have a bug
      */
     bool gnd_alt_offset_allow = false;
-
-    /** Configuration for communications with custom payload onboard computer */
-    struct CustomPayloadConfiguration {
-        bool enable = false;
-        uint8_t system_id = ugcs::vsm::mavlink::SYSTEM_ID_NONE;
-        uint8_t component_id = ugcs::vsm::mavlink::MAV_COMP_ID_ALL;
-        uint8_t network = 0;
-    } custom_payload;
 
     /** Poll for home location until it is nonzero. */
     ugcs::vsm::Timer_processor::Timer::Ptr home_location_timer;
@@ -935,6 +909,7 @@ private:
     ugcs::vsm::Property::Ptr t_rail_voltage = nullptr;
     ugcs::vsm::Property::Ptr t_rail_servo_voltage = nullptr;
 
+    std::unordered_map<std::string, ugcs::vsm::Property::Ptr> efi_status_telemetry;
 
     bool is_airborne = false;
 
@@ -949,7 +924,13 @@ private:
     // This effectively disables the "Current WP" feature.
     bool enable_route_download = false;
 
+    // value of vehicle.ardupilot.route_hash_parameter config parameter
     std::string route_hash_parameter;
+
+    // if route_hash_parameter parameter exists in vehicle actualy
+    bool route_hash_parameter_detected = false;
+
+    bool Save_hash_on_autopilot() { return (route_hash_parameter.size() > 0) && route_hash_parameter_detected; }
 
     // Onboard transponder type if configured.
     ugcs::vsm::Optional<int> adsb_transponder_type;
@@ -970,25 +951,6 @@ private:
 
     // Autopilot version
     uint32_t ardupilot_version = 0;
-
-    ugcs::vsm::Subsystem::Ptr obsolete_gpr;
-    PayloadSubsystem payload_gpr = PayloadSubsystem(0);
-    PayloadSubsystem payload_magnetometer = PayloadSubsystem(1);
-    PayloadSubsystem payload_gas_analyzer = PayloadSubsystem(2);
-
-    PayloadSubsystem* payload_subsystems[3] = {
-        &payload_gpr,
-        &payload_magnetometer,
-        &payload_gas_analyzer
-    };
-
-    // Custom Payload commands dispatcher
-    Protocol::Modern::Logic::MessageDispatcher custom_payload_dispatcher;
-
-    ugcs::vsm::mavlink::Payload_base::Ptr
-    Prepare_v2_custom_payload_message(const std::vector<uint8_t>& commandBytes);
-
-    void handle_custom_payload(size_t length, ugcs::vsm::mavlink::Uint8 *array);
 };
 
 #endif /* _ARDUPILOT_VEHICLE_H_ */
